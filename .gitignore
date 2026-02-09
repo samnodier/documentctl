@@ -1,0 +1,18 @@
+# Compiled C binaries
+*.so
+*.dll
+*.o
+*.out
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Large data/PDFs (Optional)
+# If you have a folder full of test PDFs, you might not want to upload them
+# test_pdfs/
