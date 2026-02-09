@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 
 // PDF page structure
@@ -122,7 +123,7 @@ void pdf_free(PDF *pdf){
   free(pdf->user_password);
   free(pdf->pdf_handle);
 
-  for (size_t i = 0; i<pdf->num_pages; i++) {
+  for (int i = 0; i<pdf->num_pages; i++) {
     free(pdf->pages[i].content);
     free(pdf->pages[i].raw_data);
   }

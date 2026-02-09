@@ -1,7 +1,7 @@
 # Variables
 CC = gcc
-CFLAGS = -Wall -Wextra -fPIC -O2
-LDFLAGS = -shared
+CFLAGS = -Wall -Wextra -fPIC -O2 `pkg-config --cflags poppler-glib`
+LDFLAGS = -shared `pkg-config --libs poppler-glib`
 
 # Targets
 CRAWLER_LIB = crawler.so

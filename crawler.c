@@ -26,7 +26,13 @@ int crawl_directory(const char *path, void (*callback)(const char *)) {
     // If de->d_type is a directory
     if (de->d_type == DT_DIR) {
       char sub_path[PATH_MAX];
-      int result = snprintf(sub_path, sizeof(sub_path), "%s/%s", path, de->d_name);
+
+      int result = snprintf(
+        sub_path, sizeof(sub_path), "%s%s%s",
+        path,
+        (strlen(path) > 0 && path[strlen(path) - 1] == '/') ? "" : "/",
+        de->d_name
+      );
       if (result < 0) {
         perror("Encoding/error");
       } else if ((size_t)result >= sizeof(sub_path)) {
