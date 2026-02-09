@@ -1,4 +1,7 @@
 #include "engine.h"
+#include "pdf_index.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 search_engine_t *engine_create() {
   search_engine_t *engine = malloc(sizeof(search_engine_t));
@@ -33,4 +36,13 @@ void engine_free(search_engine_t *engine) {
 
   // Free the engine shell
   free(engine);
+}
+
+void engine_index_all(search_engine_t *engine) {
+  for (int i = 0; i < engine->doc_count; i++) {
+    const char *path = engine->document_map[i];
+    // call the indexing function here for each path!
+    printf("Indexing [%d/%d]: %s\n", i + 1, engine->doc_count, path);
+    index_pdf_content(engine, i, path);
+  }
 }

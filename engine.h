@@ -2,7 +2,6 @@
 #define ENGINE_H
 
 #include "trie.h"
-#include <stdlib.h>
 
 typedef struct SearchEngine {
   trie_node_t *index_root;
@@ -13,5 +12,6 @@ typedef struct SearchEngine {
 
 search_engine_t *engine_create();
 void engine_free(search_engine_t *engine);
+void engine_index_all(search_engine_t *engine);
 
 #endif // !ENGINE_H

@@ -1,5 +1,6 @@
 #ifndef TRIE_H
 #define TRIE_H
+
 #include <stdbool.h>
 
 #define ALPHABET_SIZE 128
