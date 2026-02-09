@@ -1,0 +1,20 @@
+#include "engine.h"
+
+search_engine_t *engine_create() {
+  search_engine_t *engine = malloc(sizeof(search_engine_t));
+  if (engine == NULL) {
+    return NULL;
+  }
+
+  engine->index_root = create_node(); // Start the trie
+  engine->doc_count = 0;
+  engine->doc_capacity = 100; // Start with a space for 100 PDFs
+  char *doc_map = malloc(sizeof(char *) * engine->doc_capacity);
+  if (doc_map == NULL) {
+    return NULL;
+  }
+  engine->document_map = doc_map;
+  return engine;
+}
+
+void engine_free(search_engine_t *engine) {}

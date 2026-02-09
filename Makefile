@@ -1,23 +1,19 @@
-# Variables
 CC = gcc
 CFLAGS = -Wall -Wextra -fPIC -O2 `pkg-config --cflags poppler-glib`
 LDFLAGS = -shared `pkg-config --libs poppler-glib`
 
-# Targets
-CRAWLER_LIB = crawler.so
-PDF_LIB = pdf.so
+# List all your source files here
+SRCS = engine.c trie.c crawler.c search.c pdf.c
+OBJS = $(SRCS:.c=.o)
+TARGET = libengine.so
 
-# The 'all' target builds everything
-all: $(CRAWLER_LIB) $(PDF_LIB)
+all: $(TARGET)
 
-# Rule to build the crawler library
-$(CRAWLER_LIB): crawler.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+$(TARGET): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
-# Rule to build the pdf library
-$(PDF_LIB): pdf.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# Clean up binaries
 clean:
-	rm -f *.so *.o
+	rm -f $(TARGET) *.o

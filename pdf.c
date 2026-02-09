@@ -1,80 +1,9 @@
-#include <stddef.h>
-#include <stdint.h>
+#include "pdf.h"
 #include <stdlib.h>
-#include <stdbool.h>
-
-
-// PDF page structure
-typedef struct {
-  int page_number;
-  float width;
-  float height;
-  char *content; // text content extracted from the page
-  size_t content_length;
-  void *raw_data;
-  size_t raw_data_size;
-} PDFPage;
-
-// PDF metadata structure
-typedef struct {
-  char *title;
-  char *author;
-  char *subject;
-  char *creator;
-  char *producer;
-  char *creation_date;
-  char *modification_date;
-  char *keywords;
-} PDFMetadata;
-
-// Main PDF structure
-typedef struct {
-  // File information
-  char *filepath;
-  char *filename;
-  size_t filesize;
-
-  char *version;
-
-  int num_pages;
-  PDFPage *pages;
-
-  PDFMetadata *metadata;
-
-  // Security
-  bool is_encrypted;
-  bool is_locked;
-  char *owner_password;
-  char *user_password;
-
-  // Permissions
-  bool allow_printing;
-  bool allow_copying;
-  bool allow_modification;
-  bool allow_annotation;
-
-  // Content tracking
-  bool has_forms;
-  bool has_javascript;
-  int num_images;
-  int num_fonts;
-
-  // Internal data
-  void *pdf_handle;     // Pointer to library-specific PDF object
-  uint8_t *raw_buffer;  // Raw PDF file content
-  size_t buffer_size;
-
-  // Error handling
-  int error_code;
-  char *error_message;
-} PDF;
-
-
-
 
 // Initialization functions
 
-PDFMetadata* pdf_metadata_create(void) {
+PDFMetadata *pdf_metadata_create(void) {
   PDFMetadata *metadata = malloc(sizeof(PDFMetadata));
   if (metadata == NULL) {
     return NULL;
@@ -100,7 +29,6 @@ void pdf_metadata_free(PDFMetadata *metadata) {
     return;
   }
 
-
   free(metadata->title);
   free(metadata->author);
   free(metadata->subject);
@@ -108,13 +36,14 @@ void pdf_metadata_free(PDFMetadata *metadata) {
   free(metadata->producer);
   free(metadata->creation_date);
   free(metadata->modification_date);
-  free(metadata->keywords); 
+  free(metadata->keywords);
 
   free(metadata);
 }
 
-void pdf_free(PDF *pdf){
-  if (pdf == NULL) return;
+void pdf_free(PDF *pdf) {
+  if (pdf == NULL)
+    return;
 
   free(pdf->filepath);
   free(pdf->filename);
@@ -123,7 +52,7 @@ void pdf_free(PDF *pdf){
   free(pdf->user_password);
   free(pdf->pdf_handle);
 
-  for (int i = 0; i<pdf->num_pages; i++) {
+  for (int i = 0; i < pdf->num_pages; i++) {
     free(pdf->pages[i].content);
     free(pdf->pages[i].raw_data);
   }
