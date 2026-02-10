@@ -17,8 +17,8 @@ trie_node_t *create_node(void) {
   return new_node;
 }
 
-void trie_insert(trie_node_t *root, const char *word, int doc_id,
-                 int page_num) {
+void trie_insert(trie_node_t *root, const char *word, int doc_id, int page_num,
+                 long byte_offset) {
   trie_node_t *current = root;
   while (*word != '\0') {
     unsigned char c = *word;
@@ -31,7 +31,7 @@ void trie_insert(trie_node_t *root, const char *word, int doc_id,
     word++;
   }
   current->isEndOfWord = true;
-  add_occurence_to_node(current, doc_id, page_num);
+  add_occurence_to_node(current, doc_id, page_num, byte_offset);
 }
 
 void trie_free(trie_node_t *node) {
@@ -57,7 +57,8 @@ void trie_free(trie_node_t *node) {
   free(node);
 }
 
-word_occurrence_t *create_occurrence(int doc_id, int page_num) {
+word_occurrence_t *create_occurrence(int doc_id, int page_num,
+                                     long byte_offset) {
   word_occurrence_t *new_occurrence =
       (word_occurrence_t *)malloc(sizeof(word_occurrence_t));
 
@@ -67,24 +68,27 @@ word_occurrence_t *create_occurrence(int doc_id, int page_num) {
 
   new_occurrence->doc_id = doc_id;
   new_occurrence->page_num = page_num;
+  new_occurrence->byte_offset = byte_offset;
   new_occurrence->next = NULL;
 
   return new_occurrence;
 }
 
-void add_occurence_to_node(trie_node_t *node, int doc_id, int page_num) {
+void add_occurence_to_node(trie_node_t *node, int doc_id, int page_num,
+                           long byte_offset) {
   // Check if the list is not empty
   if (node->occurrences != NULL) {
     // Look at the very first item (the most recent one added) [We are
     // prepending]
     if (node->occurrences->doc_id == doc_id &&
-        node->occurrences->page_num == page_num) {
+        node->occurrences->page_num == page_num &&
+        node->occurrences->byte_offset == byte_offset) {
       return; // We have already recorded this word for this page. Skip!
     }
   }
 
   // Otherwise proceed with the process
-  word_occurrence_t *new_occ = create_occurrence(doc_id, page_num);
+  word_occurrence_t *new_occ = create_occurrence(doc_id, page_num, byte_offset);
   if (new_occ == NULL)
     return;
   new_occ->next = node->occurrences;
