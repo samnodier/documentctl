@@ -44,11 +44,12 @@ int *get_search_results(search_engine_t *engine, const char *word,
   }
 
   // Allocate flat array (space for doc_id and page_num)
-  int *results = malloc(sizeof(int) * count * 2);
+  int *results = malloc(sizeof(int) * count * 3);
   curr = list;
   for (int i = 0; i < count; i++) {
-    results[i * 2] = curr->doc_id;
-    results[i * 2 + 1] = curr->page_num;
+    results[i * 3] = curr->doc_id;
+    results[i * 3 + 1] = curr->page_num;
+    results[i * 3 + 2] = (int)curr->byte_offset;
     curr = curr->next;
   }
 
