@@ -1,5 +1,6 @@
 import ctypes
 import os
+import re
 import argparse
 
 
@@ -19,6 +20,7 @@ def main():
     lib.engine_index_all.argtypes = [ctypes.c_void_p]
     lib.engine_create.restype = ctypes.c_void_p
     lib.engine_free.argtypes = [ctypes.c_void_p]
+
     lib.get_search_results.restype = ctypes.POINTER(ctypes.c_int)
     lib.get_search_results.argtypes = [
         ctypes.c_void_p,
@@ -26,8 +28,15 @@ def main():
         ctypes.POINTER(ctypes.c_int),
     ]
     lib.free_results.argtypes = [ctypes.POINTER(ctypes.c_int)]
+
     lib.engine_get_document_path.restype = ctypes.c_char_p
     lib.engine_get_document_path.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+    lib.get_snippet.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_long]
+    lib.get_snippet.restype = ctypes.POINTER(ctypes.c_char)
+
+    lib.free_snippet.argtypes = [ctypes.POINTER(ctypes.c_char)]
+    lib.free_snippet.restype = None
 
     # Call the function
     parser = argparse.ArgumentParser(description="Prints PDFs in a directory")
@@ -65,15 +74,39 @@ def main():
 
         if count.value > 0:
             print(f"Found {count.value} occurrences:")
-            for i in range(0, count.value * 2, 2):
+            for i in range(0, count.value * 3, 3):
                 # Get the actual doc_id from the results array
                 doc_id = results[i]
                 page_num = results[i + 1]
+                byte_offset = results[i + 2]
 
                 # Use that id to get the filename and turn the pointer to text
                 path = lib.engine_get_document_path(my_engine, doc_id).decode("utf-8")
+                raw_snippet_ptr = lib.get_snippet(
+                    path.encode("utf-8"), page_num, byte_offset
+                )
 
-                print(f" - {os.path.basename(path)} on Page {page_num + 1}")
+                if raw_snippet_ptr:
+                    # Convert the pointer to a python string for display
+                    snippet_str = (
+                        ctypes.string_at(raw_snippet_ptr)
+                        .decode("utf-8", errors="ignore")
+                        .replace("\n", " ")
+                    )
+
+                    # Use regex for case-insensitive highlighting
+                    pattern = re.compile(re.escape(clean_word), re.IGNORECASE)
+                    highlighted = pattern.sub(
+                        lambda m: f"\033[38;5;33m{m.group(0)}\033[0m", snippet_str
+                    )
+                    print(
+                        f" - {os.path.basename(path)} on Page {page_num + 1}, Offset {byte_offset}"
+                    )
+                    print(f"    Context: ...{highlighted}...")
+
+                    # safely free the C memory
+                    lib.free_snippet(raw_snippet_ptr)
+
             lib.free_results(results)
         else:
             print("No results found.")
