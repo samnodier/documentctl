@@ -54,3 +54,9 @@ int *get_search_results(search_engine_t *engine, const char *word,
   *found_count = count;
   return results;
 }
+
+void free_results(int *results) {
+  if (results != NULL) {
+    free(results);
+  }
+}
