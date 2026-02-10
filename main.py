@@ -65,14 +65,15 @@ def main():
 
         if count.value > 0:
             print(f"Found {count.value} occurrences:")
-            for i in range(count.value):
+            for i in range(0, count.value * 2, 2):
                 # Get the actual doc_id from the results array
-                actual_doc_id = results[i]
+                doc_id = results[i]
+                page_num = results[i + 1]
 
-                # Use that id to get the filename
-                path_ptr = lib.engine_get_document_path(my_engine, actual_doc_id)
+                # Use that id to get the filename and turn the pointer to text
+                path = lib.engine_get_document_path(my_engine, doc_id).decode("utf-8")
 
-                print(f" - {path_ptr.decode('utf-8')}")
+                print(f" - {os.path.basename(path)} on Page {page_num + 1}")
             lib.free_results(results)
         else:
             print("No results found.")
