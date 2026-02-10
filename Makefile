@@ -1,6 +1,6 @@
 CC = gcc
 # -Iinclude tells the compiler to look in the include directory for .h files
-CFLAGS = -Wall -Wextra -fPIC -O2 -Iinclude `pkg-config --cflags poppler-glib`
+CFLAGS = -Wall -Wextra -fPIC -O2 -g -Iinclude `pkg-config --cflags poppler-glib`
 LDFLAGS = -shared `pkg-config --libs poppler-glib`
 
 # Folder definitions
