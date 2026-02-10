@@ -5,6 +5,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Forward declare engine
+typedef struct SearchEngine search_engine_t;
+
+void index_pdf_content(search_engine_t *engine, int doc_id,
+                       const char *filepath);
 // PDF page structure
 typedef struct {
   int page_number;

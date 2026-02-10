@@ -1,6 +1,6 @@
 #ifndef CRAWLER_H
 #define CRAWLER_H
-#include "engine.h"
+#include "toolkit_core.h"
 
 int crawl_directory(const char *path, search_engine_t *engine,
                     void (*callback)(const char *));

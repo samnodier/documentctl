@@ -33,7 +33,7 @@
     "output": "build/crawler.o"
   },
   {
-    "file": "src/engine.c",
+    "file": "src/index_structure.c",
     "arguments": [
       "gcc",
       "-Wall",
@@ -58,15 +58,15 @@
       "-I/usr/include/libpng16",
       "-I/usr/include/webp",
       "-c",
-      "src/engine.c",
+      "src/index_structure.c",
       "-o",
-      "build/engine.o"
+      "build/index_structure.o"
     ],
     "directory": "/home/samnodier/Code/projects/documentctl",
-    "output": "build/engine.o"
+    "output": "build/index_structure.o"
   },
   {
-    "file": "src/pdf.c",
+    "file": "src/pdf_processor.c",
     "arguments": [
       "gcc",
       "-Wall",
@@ -91,15 +91,15 @@
       "-I/usr/include/libpng16",
       "-I/usr/include/webp",
       "-c",
-      "src/pdf.c",
+      "src/pdf_processor.c",
       "-o",
-      "build/pdf.o"
+      "build/pdf_processor.o"
     ],
     "directory": "/home/samnodier/Code/projects/documentctl",
-    "output": "build/pdf.o"
+    "output": "build/pdf_processor.o"
   },
   {
-    "file": "src/search.c",
+    "file": "src/query_engine.c",
     "arguments": [
       "gcc",
       "-Wall",
@@ -124,15 +124,15 @@
       "-I/usr/include/libpng16",
       "-I/usr/include/webp",
       "-c",
-      "src/search.c",
+      "src/query_engine.c",
       "-o",
-      "build/search.o"
+      "build/query_engine.o"
     ],
     "directory": "/home/samnodier/Code/projects/documentctl",
-    "output": "build/search.o"
+    "output": "build/query_engine.o"
   },
   {
-    "file": "src/trie.c",
+    "file": "src/toolkit_core.c",
     "arguments": [
       "gcc",
       "-Wall",
@@ -157,11 +157,11 @@
       "-I/usr/include/libpng16",
       "-I/usr/include/webp",
       "-c",
-      "src/trie.c",
+      "src/toolkit_core.c",
       "-o",
-      "build/trie.o"
+      "build/toolkit_core.o"
     ],
     "directory": "/home/samnodier/Code/projects/documentctl",
-    "output": "build/trie.o"
+    "output": "build/toolkit_core.o"
   }
 ]

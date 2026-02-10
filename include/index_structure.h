@@ -1,5 +1,5 @@
-#ifndef TRIE_H
-#define TRIE_H
+#ifndef INDEX_STRUCTURE_H
+#define INDEX_STRUCTURE_H
 
 #include <stdbool.h>
 
@@ -24,4 +24,4 @@ void trie_insert(trie_node_t *root, const char *word, int doc_id, int page_num);
 word_occurrence_t *trie_search(trie_node_t *root, const char *word);
 void trie_free(trie_node_t *node);
 
-#endif // !TRIE_H
+#endif // !INDEX_STRUCTURE_H

@@ -1,5 +1,5 @@
-#include "engine.h"
-#include "pdf_index.h"
+#include "toolkit_core.h"
+#include "pdf_processor.h"
 #include <stdio.h>
 #include <stdlib.h>
 

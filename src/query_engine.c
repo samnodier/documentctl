@@ -1,6 +1,6 @@
-#include "search.h"
-#include "engine.h"
-#include "trie.h"
+#include "query_engine.h"
+#include "index_structure.h"
+#include "toolkit_core.h"
 #include <stdlib.h>
 
 int *get_doc_ids_from_search(word_occurrence_t *list, int *out_count) {

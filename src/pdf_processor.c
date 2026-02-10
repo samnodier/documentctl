@@ -1,8 +1,8 @@
 #include "pdf_processor.h"
-#include "engine.h"
 #include "glib-object.h"
 #include "poppler-document.h"
 #include "poppler-page.h"
+#include "toolkit_core.h"
 #include <ctype.h>
 #include <glib.h>
 #include <glib/gstdio.h>

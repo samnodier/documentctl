@@ -18,7 +18,7 @@ TARGET = $(LIB_DIR)/libengine.so
 all: $(TARGET)
 
 # The Test Suite: Links the test file with the engine objects
-test: $(BUILD_DIR)/trie.o $(BUILD_DIR)/search.o
+test: $(BUILD_DIR)/index_structure.o $(BUILD_DIR)/query_engine.o
 	$(CC) -I$(INC_DIR) $(CFLAGS) -o test_suite $(TEST_DIR)/tests.c $^
 	./test_suite
 

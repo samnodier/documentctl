@@ -1,4 +1,4 @@
-#include "trie.h"
+#include "index_structure.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
