@@ -10,7 +10,7 @@ def handle_pdf(path_bytes):
 
 
 def main():
-    lib_path = os.path.abspath("libengine.so")
+    lib_path = os.path.abspath("lib/libengine.so")
     lib = ctypes.CDLL(lib_path)
 
     CALLBACK_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_char_p)

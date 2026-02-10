@@ -1,5 +1,5 @@
-#ifndef PDF_H
-#define PDF_H
+#ifndef PDF_PROCESSOR_H
+#define PDF_PROCESSOR_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -95,4 +95,4 @@ PDFMetadata *pdf_get_metadata(PDF *pdf);
 int pdf_unlock(PDF *pdf, const char *password);
 bool pdf_is_encrypted(PDF *pdf);
 
-#endif // !PDF_H
+#endif // !PDF_PROCESSOR_H

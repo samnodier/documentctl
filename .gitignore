@@ -5,6 +5,9 @@
 *.out
 
 .cache/
+build/
+lib/
+test_suite
 
 # Python cache
 __pycache__/

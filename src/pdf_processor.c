@@ -1,4 +1,4 @@
-#include "pdf.h"
+#include "pdf_processor.h"
 #include "engine.h"
 #include "glib-object.h"
 #include "poppler-document.h"
