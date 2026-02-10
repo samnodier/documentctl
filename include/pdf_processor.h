@@ -100,4 +100,7 @@ PDFMetadata *pdf_get_metadata(PDF *pdf);
 int pdf_unlock(PDF *pdf, const char *password);
 bool pdf_is_encrypted(PDF *pdf);
 
+char *get_snippet(const char *filepath, int page_num, long byte_offset);
+void free_snippet(char *snippet);
+
 #endif // !PDF_PROCESSOR_H
