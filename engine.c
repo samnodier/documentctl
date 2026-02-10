@@ -46,3 +46,7 @@ void engine_index_all(search_engine_t *engine) {
     index_pdf_content(engine, i, path);
   }
 }
+
+const char *engine_get_document_path(search_engine_t *engine, int doc_id) {
+  return engine->document_map[doc_id];
+}
