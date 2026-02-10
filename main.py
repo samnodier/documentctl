@@ -1,4 +1,5 @@
 import ctypes
+import os
 import argparse
 
 def handle_pdf(path_bytes):
@@ -7,13 +8,15 @@ def handle_pdf(path_bytes):
     print(f"[Python] Found PDF: {path_str}")
 
 def main():
-    lib_path = "./crawler.so" # We use .so extension for linux/mac and .dll for Win
-    crawler = ctypes.CDLL(lib_path) # load the function
+    lib_path = os.path.abspath("libengine.so")
+    lib = ctypes.CDLL(lib_path)
 
     CALLBACK_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
 
-    crawler.crawl_directory.argtypes = [ctypes.c_char_p, CALLBACK_TYPE]
-    crawler.crawl_directory.restype = None
+    lib.crawl_directory.argtypes = [ctypes.c_char_p, ctypes.c_void_p, CALLBACK_TYPE]
+    lib.engine_index_all.argtypes = [ctypes.c_void_p]
+    lib.engine_create.restype = ctypes.c_void_p
+    lib.engine_free.argtypes = [ctypes.c_void_p]
 
     # Call the function
     parser = argparse.ArgumentParser(description="Prints PDFs in a directory")
@@ -22,11 +25,20 @@ def main():
     args = parser.parse_args()
 
     c_callback = CALLBACK_TYPE(handle_pdf)
+    my_engine = lib.engine_create()
 
-    result = crawler.crawl_directory(args.dir.encode('utf-8'), c_callback)
+    result = lib.crawl_directory(args.dir.encode('utf-8'), my_engine, c_callback)
 
-    # print(f"Result is: {result}")
+    # ... crawling is done
+    if result == 0:
+        print("[Python] Starting Indexing...")
+        lib.engine_index_all(my_engine)
+        print("[Python] Indexing Complete!")
+    else:
+        print("[Python] Crawl failed.")
 
+    # free the engine
+    lib.engine_free(my_engine)
 
 if __name__ == "__main__":
     main()

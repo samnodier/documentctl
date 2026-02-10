@@ -4,6 +4,8 @@
 *.o
 *.out
 
+.cache/
+
 # Python cache
 __pycache__/
 *.py[cod]
