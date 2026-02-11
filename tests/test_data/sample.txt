@@ -1,0 +1,5 @@
+This is a test document for the search engine.
+It contains words like algorithm, data, structure, and search.
+The quick brown fox jumps over the lazy dog.
+Testing serialization and deserialization.
+Artificial intelligence and machine learning.
