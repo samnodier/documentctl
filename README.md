@@ -67,7 +67,7 @@ python main.py /path/to/your/pdfs
 
 - [x] **Phase 1**: High-performance C-Trie indexer.
 - [x] **Phase 2**: Automated filesystem crawling and Poppler integration.
-- [ ] **Phase 3**: Page-level granularity and hit-context snippets.
+- [x] **Phase 3**: Page-level granularity and hit-context snippets.
 - [ ] **Phase 4**: AI-assisted summarization (Gemini API integration).
 - [ ] **Phase 5**: Persistent binary index storage to disk.
 
