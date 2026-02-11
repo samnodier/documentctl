@@ -27,8 +27,8 @@ int *get_doc_ids_from_search(word_occurrence_t *list, int *out_count) {
 // This returns a flat array if IDs that python can easily read
 // This is because c traverse an array using a pointer to the first element
 // But python doesn't
-int *get_search_results(search_engine_t *engine, const char *word,
-                        int *found_count) {
+occurrence_transfer_t *get_search_results(search_engine_t *engine,
+                                          const char *word, int *found_count) {
   word_occurrence_t *list = trie_search(engine->index_root, word);
   if (list == NULL) {
     *found_count = 0;
@@ -44,12 +44,14 @@ int *get_search_results(search_engine_t *engine, const char *word,
   }
 
   // Allocate flat array (space for doc_id and page_num)
-  int *results = malloc(sizeof(int) * count * 3);
+  occurrence_transfer_t *results =
+      malloc(sizeof(occurrence_transfer_t) * count);
+
   curr = list;
   for (int i = 0; i < count; i++) {
-    results[i * 3] = curr->doc_id;
-    results[i * 3 + 1] = curr->page_num;
-    results[i * 3 + 2] = (int)curr->byte_offset;
+    results[i].doc_id = curr->doc_id;
+    results[i].page_num = curr->page_num;
+    results[i].byte_offset = curr->byte_offset;
     curr = curr->next;
   }
 
