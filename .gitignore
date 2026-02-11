@@ -5,6 +5,7 @@
 *.out
 
 .cache/
+data/
 build/
 lib/
 test_suite
