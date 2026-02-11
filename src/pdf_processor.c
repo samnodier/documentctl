@@ -72,53 +72,98 @@ void pdf_free(PDF *pdf) {
 
 void index_pdf_content(search_engine_t *engine, int doc_id,
                        const char *filepath) {
-  GError *error = NULL;
-  gchar *uri = g_filename_to_uri(filepath, NULL, &error);
+#ifdef DEBUG_MODE
+  printf("[DEBUG PDF] Opening: %s\n", filepath);
+#endif /* ifdef DEBUG_MODE                                                     \
+        */
 
-  if (uri) {
-    PopplerDocument *doc = poppler_document_new_from_file(uri, NULL, &error);
-    if (doc == NULL) {
-      g_warning("Failed to open document: %s", error->message);
+  // Convert to absolute path first
+  char *abs_path = g_canonicalize_filename(filepath, NULL);
+
+  GError *error = NULL;
+  gchar *uri = g_filename_to_uri(abs_path, NULL, &error);
+
+  g_free(abs_path);
+
+  if (!uri) {
+#ifdef DEBUG_MODE
+    printf("[DEBUG PDF] FAILED to convert filepath to URI!\n");
+#endif /* ifdef DEBUG_MODE */
+    if (error) {
+#ifdef DEBUG_MODE
+      printf("[DEBUG PDF] Error: %s\n", error->message);
+#endif /* ifdef DEBUG_MODE */
       g_error_free(error);
-    } else {
-      int num_pages = poppler_document_get_n_pages(doc);
-      for (int i = 0; i < num_pages; i++) {
-        PopplerPage *page = poppler_document_get_page(doc, i);
-        char *page_text = poppler_page_get_text(page);
-        if (page_text) {
-          char word[100];
-          int w_idx = 0;         // Separate index for our small word buffer
-          long start_offset = 0; // To track the beginning of a word
-          for (size_t j = 0; j < strlen(page_text); j++) {
-            char c = page_text[j];
-            if (isalnum(c)) {
-              if (w_idx == 0) {   // start of the word
-                start_offset = j; // Record the current index
-              }
-              if (w_idx < 99) {
-                word[w_idx++] = tolower(c);
-              }
-            } else {
-              // We hit a space or punctuation
-              if (w_idx > 0) {      // We have letters
-                word[w_idx] = '\0'; // Terminate the string
-                trie_insert(engine->index_root, word, doc_id, i, start_offset);
-                w_idx = 0; // Reset for the next word
-              }
-            }
+    }
+    return;
+  }
+#ifdef DEBUG_MODE
+  printf("[DEBUG PDF] URI: %s\n", uri); // ADD THIS
+#endif                                  /* ifdef DEBUG_MODE */
+
+  PopplerDocument *doc = poppler_document_new_from_file(uri, NULL, &error);
+
+  g_free(uri);
+  if (doc == NULL) {
+#ifdef DEBUG_MODE
+
+    printf("[DEBUG PDF] FAILED to open document!\n"); // ADD THIS
+#endif                                                /* ifdef DEBUG_MODE */
+    if (error) {
+#ifdef DEBUG_MODE
+      printf("[DEBUG PDF] Error: %s\n", error->message); // ADD THIS
+#endif
+    }
+    g_error_free(error);
+    return; // ADD THIS - you were missing it!
+  }
+
+  int num_pages = poppler_document_get_n_pages(doc);
+
+#ifdef DEBUG_MODE
+  printf("[DEBUG PDF] Successfully opened, pages: %d\n",
+         poppler_document_get_n_pages(doc));
+#endif
+  for (int i = 0; i < num_pages; i++) {
+    PopplerPage *page = poppler_document_get_page(doc, i);
+    if (!page)
+      continue;
+
+    char *page_text = poppler_page_get_text(page);
+    if (page_text) {
+      char word[100];
+      int w_idx = 0;         // Separate index for our small word buffer
+      long start_offset = 0; // To track the beginning of a word
+
+      for (size_t j = 0; j < strlen(page_text); j++) {
+        char c = page_text[j];
+        if (isalnum(c)) {
+          if (w_idx == 0) {   // start of the word
+            start_offset = j; // Record the current index
           }
-          if (w_idx > 0) {
+          if (w_idx < 99) {
+            word[w_idx++] = tolower(c);
+          }
+        } else {
+          // We hit a space or punctuation
+          if (w_idx > 0) {      // We have letters
             word[w_idx] = '\0'; // Terminate the string
             trie_insert(engine->index_root, word, doc_id, i, start_offset);
+            w_idx = 0; // Reset for the next word
           }
-          g_free(page_text);
         }
-        g_object_unref(page);
       }
-      g_object_unref(doc);
+
+      // Final word on the page
+      if (w_idx > 0) {
+        word[w_idx] = '\0'; // Terminate the string
+        trie_insert(engine->index_root, word, doc_id, i, start_offset);
+      }
+      g_free(page_text);
     }
-    g_free(uri);
+    g_object_unref(page);
   }
+  g_object_unref(doc);
 }
 
 char *get_snippet(const char *filepath, int page_num, long byte_offset) {
