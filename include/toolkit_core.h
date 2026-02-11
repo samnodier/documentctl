@@ -15,5 +15,6 @@ void engine_free(search_engine_t *engine);
 void engine_index_all(search_engine_t *engine);
 const char *engine_get_document_path(search_engine_t *engine, int doc_id);
 int engine_serialize(search_engine_t *engine, char *filepath);
+search_engine_t *engine_deserialize(char *filepath);
 
 #endif // !TOOLKIT_CORE_H
