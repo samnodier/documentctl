@@ -25,8 +25,8 @@ void trie_insert(trie_node_t *root, const char *word, int doc_id, int page_num,
 #ifdef DEBUG_MODE
   printf("[DEBUG INSERT] word='%s' doc=%d page=%d offset=%ld\n", word, doc_id,
          page_num, byte_offset);
-#endif /* ifdef DEBUG_MODE                                                     \
-        */
+#endif /* ifdef DEBUG_MODE */
+
   trie_node_t *current = root;
   while (*word != '\0') {
     unsigned char c = *word;

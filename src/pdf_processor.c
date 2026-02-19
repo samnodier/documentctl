@@ -74,8 +74,7 @@ void index_pdf_content(search_engine_t *engine, int doc_id,
                        const char *filepath) {
 #ifdef DEBUG_MODE
   printf("[DEBUG PDF] Opening: %s\n", filepath);
-#endif /* ifdef DEBUG_MODE                                                     \
-        */
+#endif
 
   // Convert to absolute path first
   char *abs_path = g_canonicalize_filename(filepath, NULL);

@@ -2,12 +2,14 @@
 #define TOOLKIT_CORE_H
 
 #include "index_structure.h"
+#include <pthread.h>
 
 typedef struct SearchEngine {
   trie_node_t *index_root;
   char **document_map;
   int doc_count;
   int doc_capacity;
+  pthread_mutex_t trie_lock;
 } search_engine_t;
 
 search_engine_t *engine_create();

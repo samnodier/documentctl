@@ -1,6 +1,7 @@
 #include "toolkit_core.h"
 #include "index_structure.h"
 #include "pdf_processor.h"
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@ search_engine_t *engine_create() {
   engine->index_root = create_node(); // Start the trie
   engine->doc_count = 0;
   engine->doc_capacity = 100; // Start with a space for 100 PDFs
+  pthread_mutex_init(&engine->trie_lock, NULL);
   char **doc_map = malloc(sizeof(char *) * engine->doc_capacity);
   if (doc_map == NULL) {
     return NULL;
@@ -29,6 +31,9 @@ void engine_free(search_engine_t *engine) {
     return;
 
   trie_free(engine->index_root);
+
+  // Destroy the thread
+  pthread_mutex_destroy(&engine->trie_lock);
 
   // Free all strings in the document_map
   for (int i = 0; i < engine->doc_count; i++) {
