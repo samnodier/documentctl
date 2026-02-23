@@ -20,16 +20,24 @@ class SearchResult:
     """Represents a single search result occurrence"""
 
     def __init__(
-        self, doc_id: int, page_num: int, byte_offset: int, doc_path: str = ""
+            self, doc_id: int, page_num: int, byte_offset: int, doc_path: str = "", title: str = "", author: str = ""
     ):
         self.doc_id = doc_id
         self.page_num = page_num
         self.byte_offset = byte_offset
         self.doc_path = doc_path
+        self.title = title
+        self.author = author
 
     def __repr__(self):
-        return f"SearchResult(doc={self.doc_id}, page={self.page_num}, offset={self.byte_offset})"
+        return f"SearchResult(doc={self.title} by {self.author}, page={self.page_num + 1})"
 
+
+class DocMetadata(ctypes.Structure):
+    _fields_ = [
+        ("title", ctypes.c_char_p),
+        ("author", ctypes.c_char_p),
+    ]
 
 class SearchEngine:
     """
@@ -89,6 +97,11 @@ class SearchEngine:
             CALLBACK_TYPE,
         ]
         self.lib.crawl_directory.restype = ctypes.c_int
+
+        # Metadata
+        self.lib.engine_get_metadata.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self.lib.engine_get_metadata.restype = ctypes.POINTER(DocMetadata)
+
         self.lib.engine_index_all_chunked.argtypes = [ctypes.c_void_p]
         self.lib.engine_index_all_chunked.restype = None
 
@@ -242,7 +255,23 @@ class SearchEngine:
                 doc_path = self.lib.engine_get_document_path(
                     self.engine, doc_id
                 ).decode("utf-8")
-                result = SearchResult(doc_id, page_num, byte_offset, doc_path)
+
+                # Fetch metadata from C
+                meta_ptr = self.lib.engine_get_metadata(self.engine, doc_id)
+
+                # Initialize default in case meta_ptr is null
+                title, author = "Unknown Title", "Unknown Author"
+
+                if meta_ptr:
+                    # Access the struct data via.contents
+                    meta_data = meta_ptr.contents
+                    #Decode C strings
+                    if meta_data.title:
+                        title = meta_data.title.decode("utf-8", errors="ignore")
+                    if meta_data.author:
+                        author = meta_data.author.decode("utf-8", errors="ignore")
+
+                result = SearchResult(doc_id, page_num, byte_offset, doc_path, title, author)
                 results.append(result)
 
             # Free C memory

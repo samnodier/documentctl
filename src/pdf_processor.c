@@ -1,4 +1,5 @@
 #include "pdf_processor.h"
+#include "debug.h"
 #include "glib-object.h"
 #include "poppler-document.h"
 #include "poppler-page.h"
@@ -9,72 +10,9 @@
 #include <poppler.h>
 #include <stdlib.h>
 
-// Initialization functions
-
-PDFMetadata *pdf_metadata_create(void) {
-    PDFMetadata *metadata = malloc(sizeof(PDFMetadata));
-    if (metadata == NULL) {
-        return NULL;
-    }
-
-    // Initialize all pointers to NULL;
-    metadata->title = NULL;
-    metadata->author = NULL;
-    metadata->subject = NULL;
-    metadata->creator = NULL;
-    metadata->producer = NULL;
-    metadata->creation_date = NULL;
-    metadata->modification_date = NULL;
-    metadata->keywords = NULL;
-
-    return metadata;
-}
-
-// Cleanup function
-
-void pdf_metadata_free(PDFMetadata *metadata) {
-    if (metadata == NULL) {
-        return;
-    }
-
-    free(metadata->title);
-    free(metadata->author);
-    free(metadata->subject);
-    free(metadata->creator);
-    free(metadata->producer);
-    free(metadata->creation_date);
-    free(metadata->modification_date);
-    free(metadata->keywords);
-
-    free(metadata);
-}
-
-void pdf_free(PDF *pdf) {
-    if (pdf == NULL)
-        return;
-
-    free(pdf->filepath);
-    free(pdf->filename);
-    free(pdf->version);
-    free(pdf->owner_password);
-    free(pdf->user_password);
-    free(pdf->pdf_handle);
-
-    for (int i = 0; i < pdf->num_pages; i++) {
-        free(pdf->pages[i].content);
-        free(pdf->pages[i].raw_data);
-    }
-    free(pdf->pages);
-    pdf_metadata_free(pdf->metadata);
-
-    free(pdf);
-}
-
 void index_pdf_content(search_engine_t *engine, int doc_id,
                        const char *filepath) {
-#ifdef DEBUG_MODE
-    printf("[DEBUG PDF] Opening: %s\n", filepath);
-#endif
+    DEBUG_PRINT("[DEBUG PDF] Opening: %s\n", filepath);
 
     // Convert to absolute path first
     char *abs_path = g_canonicalize_filename(filepath, NULL);
@@ -85,44 +23,38 @@ void index_pdf_content(search_engine_t *engine, int doc_id,
     g_free(abs_path);
 
     if (!uri) {
-#ifdef DEBUG_MODE
-        printf("[DEBUG PDF] FAILED to convert filepath to URI!\n");
-#endif /* ifdef DEBUG_MODE */
+        DEBUG_PRINT("[DEBUG PDF] FAILED to convert filepath to URI!\n");
         if (error) {
-#ifdef DEBUG_MODE
-            printf("[DEBUG PDF] Error: %s\n", error->message);
-#endif /* ifdef DEBUG_MODE */
+            DEBUG_PRINT("[DEBUG PDF] Error: %s\n", error->message);
             g_error_free(error);
         }
         return;
     }
-#ifdef DEBUG_MODE
-    printf("[DEBUG PDF] URI: %s\n", uri); // ADD THIS
-#endif                                    /* ifdef DEBUG_MODE */
+    DEBUG_PRINT("[DEBUG PDF] URI: %s\n", uri); // ADD THIS
 
     PopplerDocument *doc = poppler_document_new_from_file(uri, NULL, &error);
 
     g_free(uri);
     if (doc == NULL) {
-#ifdef DEBUG_MODE
-
-        printf("[DEBUG PDF] FAILED to open document!\n"); // ADD THIS
-#endif                                                    /* ifdef DEBUG_MODE */
+        DEBUG_PRINT("[DEBUG PDF] FAILED to open document!\n"); // ADD THIS
         if (error) {
-#ifdef DEBUG_MODE
-            printf("[DEBUG PDF] Error: %s\n", error->message); // ADD THIS
-#endif
+            DEBUG_PRINT("[DEBUG PDF] Error: %s\n", error->message); // ADD THIS
         }
         g_error_free(error);
         return; // ADD THIS - you were missing it!
     }
 
+    char *t = poppler_document_get_title(doc);
+    char *a = poppler_document_get_author(doc);
     int num_pages = poppler_document_get_n_pages(doc);
 
-#ifdef DEBUG_MODE
-    printf("[DEBUG PDF] Successfully opened, pages: %d\n",
-           poppler_document_get_n_pages(doc));
-#endif
+    pthread_mutex_lock(&engine->trie_lock);
+    engine->metadata_map[doc_id].title = t ? t : strdup("Unknown Title");
+    engine->metadata_map[doc_id].author = a ? a : strdup("Unknown Author");
+    pthread_mutex_unlock(&engine->trie_lock);
+
+    DEBUG_PRINT("[DEBUG PDF] Successfully opened, pages: %d\n",
+                poppler_document_get_n_pages(doc));
     for (int i = 0; i < num_pages; i++) {
         PopplerPage *page = poppler_document_get_page(doc, i);
         if (!page)

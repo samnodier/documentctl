@@ -4,6 +4,10 @@
 *.o
 *.out
 
+# Environment
+.env
+.envrc
+
 .cache/
 data/
 build/

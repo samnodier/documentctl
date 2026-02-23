@@ -4,14 +4,22 @@
 #include "index_structure.h"
 #include <pthread.h>
 
+// PDF metadata structure
+typedef struct {
+    char *title;
+    char *author;
+} doc_metadata_t;
+
 typedef struct SearchEngine {
     trie_node_t *index_root;
     char **document_map;
+    doc_metadata_t *metadata_map;
     int doc_count;
     int doc_capacity;
     pthread_mutex_t trie_lock;
 } search_engine_t;
 
+doc_metadata_t *engine_get_metadata(search_engine_t *engine, int doc_id);
 search_engine_t *engine_create();
 void engine_free(search_engine_t *engine);
 void engine_index_all_chunked(search_engine_t *engine);

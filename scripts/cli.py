@@ -46,8 +46,7 @@ def interactive_search(engine: SearchEngine):
 
             # Display results
             for i, result in enumerate(results, 1):
-                filename = os.path.basename(result.doc_path)
-                print(f"{i}. {filename} - Page {result.page_num + 1}")
+                print(f"{i}. {result}")
 
                 # Get and display snippet
                 snippet = engine.get_snippet(result)
