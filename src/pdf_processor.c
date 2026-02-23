@@ -12,205 +12,232 @@
 // Initialization functions
 
 PDFMetadata *pdf_metadata_create(void) {
-  PDFMetadata *metadata = malloc(sizeof(PDFMetadata));
-  if (metadata == NULL) {
-    return NULL;
-  }
+    PDFMetadata *metadata = malloc(sizeof(PDFMetadata));
+    if (metadata == NULL) {
+        return NULL;
+    }
 
-  // Initialize all pointers to NULL;
-  metadata->title = NULL;
-  metadata->author = NULL;
-  metadata->subject = NULL;
-  metadata->creator = NULL;
-  metadata->producer = NULL;
-  metadata->creation_date = NULL;
-  metadata->modification_date = NULL;
-  metadata->keywords = NULL;
+    // Initialize all pointers to NULL;
+    metadata->title = NULL;
+    metadata->author = NULL;
+    metadata->subject = NULL;
+    metadata->creator = NULL;
+    metadata->producer = NULL;
+    metadata->creation_date = NULL;
+    metadata->modification_date = NULL;
+    metadata->keywords = NULL;
 
-  return metadata;
+    return metadata;
 }
 
 // Cleanup function
 
 void pdf_metadata_free(PDFMetadata *metadata) {
-  if (metadata == NULL) {
-    return;
-  }
+    if (metadata == NULL) {
+        return;
+    }
 
-  free(metadata->title);
-  free(metadata->author);
-  free(metadata->subject);
-  free(metadata->creator);
-  free(metadata->producer);
-  free(metadata->creation_date);
-  free(metadata->modification_date);
-  free(metadata->keywords);
+    free(metadata->title);
+    free(metadata->author);
+    free(metadata->subject);
+    free(metadata->creator);
+    free(metadata->producer);
+    free(metadata->creation_date);
+    free(metadata->modification_date);
+    free(metadata->keywords);
 
-  free(metadata);
+    free(metadata);
 }
 
 void pdf_free(PDF *pdf) {
-  if (pdf == NULL)
-    return;
+    if (pdf == NULL)
+        return;
 
-  free(pdf->filepath);
-  free(pdf->filename);
-  free(pdf->version);
-  free(pdf->owner_password);
-  free(pdf->user_password);
-  free(pdf->pdf_handle);
+    free(pdf->filepath);
+    free(pdf->filename);
+    free(pdf->version);
+    free(pdf->owner_password);
+    free(pdf->user_password);
+    free(pdf->pdf_handle);
 
-  for (int i = 0; i < pdf->num_pages; i++) {
-    free(pdf->pages[i].content);
-    free(pdf->pages[i].raw_data);
-  }
-  free(pdf->pages);
-  pdf_metadata_free(pdf->metadata);
+    for (int i = 0; i < pdf->num_pages; i++) {
+        free(pdf->pages[i].content);
+        free(pdf->pages[i].raw_data);
+    }
+    free(pdf->pages);
+    pdf_metadata_free(pdf->metadata);
 
-  free(pdf);
+    free(pdf);
 }
 
 void index_pdf_content(search_engine_t *engine, int doc_id,
                        const char *filepath) {
 #ifdef DEBUG_MODE
-  printf("[DEBUG PDF] Opening: %s\n", filepath);
+    printf("[DEBUG PDF] Opening: %s\n", filepath);
 #endif
 
-  // Convert to absolute path first
-  char *abs_path = g_canonicalize_filename(filepath, NULL);
+    // Convert to absolute path first
+    char *abs_path = g_canonicalize_filename(filepath, NULL);
 
-  GError *error = NULL;
-  gchar *uri = g_filename_to_uri(abs_path, NULL, &error);
+    GError *error = NULL;
+    gchar *uri = g_filename_to_uri(abs_path, NULL, &error);
 
-  g_free(abs_path);
+    g_free(abs_path);
 
-  if (!uri) {
+    if (!uri) {
 #ifdef DEBUG_MODE
-    printf("[DEBUG PDF] FAILED to convert filepath to URI!\n");
+        printf("[DEBUG PDF] FAILED to convert filepath to URI!\n");
 #endif /* ifdef DEBUG_MODE */
-    if (error) {
+        if (error) {
 #ifdef DEBUG_MODE
-      printf("[DEBUG PDF] Error: %s\n", error->message);
+            printf("[DEBUG PDF] Error: %s\n", error->message);
 #endif /* ifdef DEBUG_MODE */
-      g_error_free(error);
-    }
-    return;
-  }
-#ifdef DEBUG_MODE
-  printf("[DEBUG PDF] URI: %s\n", uri); // ADD THIS
-#endif                                  /* ifdef DEBUG_MODE */
-
-  PopplerDocument *doc = poppler_document_new_from_file(uri, NULL, &error);
-
-  g_free(uri);
-  if (doc == NULL) {
-#ifdef DEBUG_MODE
-
-    printf("[DEBUG PDF] FAILED to open document!\n"); // ADD THIS
-#endif                                                /* ifdef DEBUG_MODE */
-    if (error) {
-#ifdef DEBUG_MODE
-      printf("[DEBUG PDF] Error: %s\n", error->message); // ADD THIS
-#endif
-    }
-    g_error_free(error);
-    return; // ADD THIS - you were missing it!
-  }
-
-  int num_pages = poppler_document_get_n_pages(doc);
-
-#ifdef DEBUG_MODE
-  printf("[DEBUG PDF] Successfully opened, pages: %d\n",
-         poppler_document_get_n_pages(doc));
-#endif
-  for (int i = 0; i < num_pages; i++) {
-    PopplerPage *page = poppler_document_get_page(doc, i);
-    if (!page)
-      continue;
-
-    char *page_text = poppler_page_get_text(page);
-    if (page_text) {
-      char word[100];
-      int w_idx = 0;         // Separate index for our small word buffer
-      long start_offset = 0; // To track the beginning of a word
-
-      for (size_t j = 0; j < strlen(page_text); j++) {
-        char c = page_text[j];
-        if (isalnum(c)) {
-          if (w_idx == 0) {   // start of the word
-            start_offset = j; // Record the current index
-          }
-          if (w_idx < 99) {
-            word[w_idx++] = tolower(c);
-          }
-        } else {
-          // We hit a space or punctuation
-          if (w_idx > 0) {      // We have letters
-            word[w_idx] = '\0'; // Terminate the string
-            trie_insert(engine->index_root, word, doc_id, i, start_offset);
-            w_idx = 0; // Reset for the next word
-          }
+            g_error_free(error);
         }
-      }
-
-      // Final word on the page
-      if (w_idx > 0) {
-        word[w_idx] = '\0'; // Terminate the string
-        trie_insert(engine->index_root, word, doc_id, i, start_offset);
-      }
-      g_free(page_text);
+        return;
     }
-    g_object_unref(page);
-  }
-  g_object_unref(doc);
+#ifdef DEBUG_MODE
+    printf("[DEBUG PDF] URI: %s\n", uri); // ADD THIS
+#endif                                    /* ifdef DEBUG_MODE */
+
+    PopplerDocument *doc = poppler_document_new_from_file(uri, NULL, &error);
+
+    g_free(uri);
+    if (doc == NULL) {
+#ifdef DEBUG_MODE
+
+        printf("[DEBUG PDF] FAILED to open document!\n"); // ADD THIS
+#endif                                                    /* ifdef DEBUG_MODE */
+        if (error) {
+#ifdef DEBUG_MODE
+            printf("[DEBUG PDF] Error: %s\n", error->message); // ADD THIS
+#endif
+        }
+        g_error_free(error);
+        return; // ADD THIS - you were missing it!
+    }
+
+    int num_pages = poppler_document_get_n_pages(doc);
+
+#ifdef DEBUG_MODE
+    printf("[DEBUG PDF] Successfully opened, pages: %d\n",
+           poppler_document_get_n_pages(doc));
+#endif
+    for (int i = 0; i < num_pages; i++) {
+        PopplerPage *page = poppler_document_get_page(doc, i);
+        if (!page)
+            continue;
+
+        char *page_text = poppler_page_get_text(page);
+        if (page_text) {
+            char word[100];
+            int w_idx = 0;         // Separate index for our small word buffer
+            long start_offset = 0; // To track the beginning of a word
+
+            for (size_t j = 0; j < strlen(page_text); j++) {
+                char c = page_text[j];
+                if (isalnum(c)) {
+                    if (w_idx == 0) {     // start of the word
+                        start_offset = j; // Record the current index
+                    }
+                    if (w_idx < 99) {
+                        word[w_idx++] = tolower(c);
+                    }
+                } else {
+                    // We hit a space or punctuation
+                    if (w_idx > 0) {        // We have letters
+                        word[w_idx] = '\0'; // Terminate the string
+
+                        pthread_mutex_lock(&engine->trie_lock);
+                        trie_insert(engine->index_root, word, doc_id, i,
+                                    start_offset);
+                        pthread_mutex_unlock(&engine->trie_lock);
+
+                        w_idx = 0; // Reset for the next word
+                    }
+                }
+            }
+
+            // Final word on the page
+            if (w_idx > 0) {
+                word[w_idx] = '\0'; // Terminate the string
+
+                pthread_mutex_lock(&engine->trie_lock);
+                trie_insert(engine->index_root, word, doc_id, i, start_offset);
+                pthread_mutex_unlock(&engine->trie_lock);
+            }
+            g_free(page_text);
+        }
+        g_object_unref(page);
+    }
+    g_object_unref(doc);
+}
+
+// The "Wrapper" that pthreads requires
+void *thread_chunk_worker(void *arg) {
+    thread_chunk_t *chunk = (thread_chunk_t *)arg;
+
+    for (int i = chunk->start_index; i < chunk->end_index; i++) {
+        char *path = chunk->engine->document_map[i];
+        // Print from the backgroudn thread!
+        printf("[Thread %lu] Indexing: %s\n", (unsigned long)pthread_self(),
+               path);
+        // The thread calls indexing function for its assigned range
+        index_pdf_content(chunk->engine, i, path);
+    }
+
+    free(chunk); // Clean up the task envelope
+    return NULL;
 }
 
 char *get_snippet(const char *filepath, int page_num, long byte_offset) {
-  GError *error = NULL;
-  gchar *uri = g_filename_to_uri(filepath, NULL, &error);
+    GError *error = NULL;
+    gchar *uri = g_filename_to_uri(filepath, NULL, &error);
 
-  if (uri) {
-    PopplerDocument *doc = poppler_document_new_from_file(uri, NULL, &error);
-    if (doc == NULL) {
-      g_warning("Failed to open document: %s", error->message);
-      g_error_free(error);
-    } else {
-      PopplerPage *page = poppler_document_get_page(doc, page_num);
-      char *page_text = poppler_page_get_text(page);
-      if (page_text) {
-        size_t page_len = strlen(page_text);
-        long start = (byte_offset > 30) ? (byte_offset - 30) : 0;
-        long end = (byte_offset + 30 < (long)page_len) ? (byte_offset + 30)
-                                                       : (long)page_len;
+    if (uri) {
+        PopplerDocument *doc =
+            poppler_document_new_from_file(uri, NULL, &error);
+        if (doc == NULL) {
+            g_warning("Failed to open document: %s", error->message);
+            g_error_free(error);
+        } else {
+            PopplerPage *page = poppler_document_get_page(doc, page_num);
+            char *page_text = poppler_page_get_text(page);
+            if (page_text) {
+                size_t page_len = strlen(page_text);
+                long start = (byte_offset > 30) ? (byte_offset - 30) : 0;
+                long end = (byte_offset + 30 < (long)page_len)
+                               ? (byte_offset + 30)
+                               : (long)page_len;
 
-        // Snap START backward to the nearest space
-        while (start > 0 && page_text[start] != ' ' &&
-               page_text[start] != '\n') {
-          start--;
+                // Snap START backward to the nearest space
+                while (start > 0 && page_text[start] != ' ' &&
+                       page_text[start] != '\n') {
+                    start--;
+                }
+
+                // Snap END forward to the nearest space
+                while (end < (long)page_len && page_text[end] != ' ' &&
+                       page_text[end] != '\n') {
+                    end++;
+                }
+
+                size_t length_to_copy = end - start;
+                char *result = malloc(length_to_copy + 1);
+
+                // Prevent from going before the beginning of text (index 0)
+                strncpy(result, page_text + start, length_to_copy);
+                result[length_to_copy] = '\0';
+                g_free(page_text);
+                g_object_unref(page);
+                g_object_unref(doc);
+                g_free(uri);
+
+                return result;
+            }
         }
-
-        // Snap END forward to the nearest space
-        while (end < (long)page_len && page_text[end] != ' ' &&
-               page_text[end] != '\n') {
-          end++;
-        }
-
-        size_t length_to_copy = end - start;
-        char *result = malloc(length_to_copy + 1);
-
-        // Prevent from going before the beginning of text (index 0)
-        strncpy(result, page_text + start, length_to_copy);
-        result[length_to_copy] = '\0';
-        g_free(page_text);
-        g_object_unref(page);
-        g_object_unref(doc);
-        g_free(uri);
-
-        return result;
-      }
     }
-  }
-  return NULL;
+    return NULL;
 }
 
 void free_snippet(char *snippet) { free(snippet); }

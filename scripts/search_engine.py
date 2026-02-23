@@ -89,8 +89,8 @@ class SearchEngine:
             CALLBACK_TYPE,
         ]
         self.lib.crawl_directory.restype = ctypes.c_int
-        self.lib.engine_index_all.argtypes = [ctypes.c_void_p]
-        self.lib.engine_index_all.restype = None
+        self.lib.engine_index_all_chunked.argtypes = [ctypes.c_void_p]
+        self.lib.engine_index_all_chunked.restype = None
 
         # Search
         self.lib.get_search_results.argtypes = [
@@ -201,7 +201,7 @@ class SearchEngine:
 
         # Index all found PDFs
         print("[Engine] Starting indexing...")
-        self.lib.engine_index_all(self.engine)
+        self.lib.engine_index_all_chunked(self.engine)
         print("[Engine] Indexing complete!")
 
         self._is_indexed = True

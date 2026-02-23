@@ -8,72 +8,76 @@
 // Forward declare engine
 typedef struct SearchEngine search_engine_t;
 
-void index_pdf_content(search_engine_t *engine, int doc_id,
-                       const char *filepath);
 // PDF page structure
 typedef struct {
-  int page_number;
-  float width;
-  float height;
-  char *content; // text content extracted from the page
-  size_t content_length;
-  void *raw_data;
-  size_t raw_data_size;
+    int page_number;
+    float width;
+    float height;
+    char *content; // text content extracted from the page
+    size_t content_length;
+    void *raw_data;
+    size_t raw_data_size;
 } PDFPage;
 
 // PDF metadata structure
 typedef struct {
-  char *title;
-  char *author;
-  char *subject;
-  char *creator;
-  char *producer;
-  char *creation_date;
-  char *modification_date;
-  char *keywords;
+    char *title;
+    char *author;
+    char *subject;
+    char *creator;
+    char *producer;
+    char *creation_date;
+    char *modification_date;
+    char *keywords;
 } PDFMetadata;
 
 // Main PDF structure
 typedef struct {
-  // File information
-  char *filepath;
-  char *filename;
-  size_t filesize;
+    // File information
+    char *filepath;
+    char *filename;
+    size_t filesize;
 
-  char *version;
+    char *version;
 
-  int num_pages;
-  PDFPage *pages;
+    int num_pages;
+    PDFPage *pages;
 
-  PDFMetadata *metadata;
+    PDFMetadata *metadata;
 
-  // Security
-  bool is_encrypted;
-  bool is_locked;
-  char *owner_password;
-  char *user_password;
+    // Security
+    bool is_encrypted;
+    bool is_locked;
+    char *owner_password;
+    char *user_password;
 
-  // Permissions
-  bool allow_printing;
-  bool allow_copying;
-  bool allow_modification;
-  bool allow_annotation;
+    // Permissions
+    bool allow_printing;
+    bool allow_copying;
+    bool allow_modification;
+    bool allow_annotation;
 
-  // Content tracking
-  bool has_forms;
-  bool has_javascript;
-  int num_images;
-  int num_fonts;
+    // Content tracking
+    bool has_forms;
+    bool has_javascript;
+    int num_images;
+    int num_fonts;
 
-  // Internal data
-  void *pdf_handle;    // Pointer to library-specific PDF object
-  uint8_t *raw_buffer; // Raw PDF file content
-  size_t buffer_size;
+    // Internal data
+    void *pdf_handle;    // Pointer to library-specific PDF object
+    uint8_t *raw_buffer; // Raw PDF file content
+    size_t buffer_size;
 
-  // Error handling
-  int error_code;
-  char *error_message;
+    // Error handling
+    int error_code;
+    char *error_message;
 } PDF;
+
+typedef struct {
+    search_engine_t *engine;
+    int start_index;
+    int end_index;
+} thread_chunk_t;
 
 // PDF Initialization and cleanup
 PDF *pdf_create(void);
@@ -99,6 +103,11 @@ PDFMetadata *pdf_get_metadata(PDF *pdf);
 // Security operations
 int pdf_unlock(PDF *pdf, const char *password);
 bool pdf_is_encrypted(PDF *pdf);
+
+void index_pdf_content(search_engine_t *engine, int doc_id,
+                       const char *filepath);
+
+void *thread_chunk_worker(void *arg);
 
 char *get_snippet(const char *filepath, int page_num, long byte_offset);
 void free_snippet(char *snippet);
