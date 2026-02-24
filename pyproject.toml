@@ -1,0 +1,12 @@
+[project]
+name = "documentctl"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pymupdf>=1.27.1",
+    "pyqt6>=6.10.2",
+    "pyqt6rc>=0.7.1",
+    "pyright>=1.1.408",
+]

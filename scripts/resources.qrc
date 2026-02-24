@@ -1,0 +1,11 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="icons">
+        <file alias="search.png">icons/search.png</file>
+        <file alias="file_open.png">icons/file_open.png</file>
+        <file alias="dock_to_right.png">icons/dock_to_right.png</file>
+        <file alias="dock_to_left.png">icons/dock_to_left.png</file>
+        <file alias="arrow_back.png">icons/arrow_back.png</file>
+        <file alias="arrow_forward.png">icons/arrow_forward.png</file>
+    </qresource>
+</RCC>
