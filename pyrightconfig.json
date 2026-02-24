@@ -1,8 +1,10 @@
 {
-  "executionEnvironments": [
-    {
-      "root": ".",
-      "extraPaths": ["scripts"]
-    }
-  ]
+    "venvPath": ".",
+    "venv": ".venv",
+    "executionEnvironments": [
+        {
+            "root": ".",
+            "extraPaths": ["scripts"]
+        }
+    ]
 }
