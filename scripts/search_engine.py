@@ -1,11 +1,27 @@
 """
-Search Engine wrapper for libengine.so
+Search Engine wrapper for libengine.so / libengine.dylib
 Handles all C library interactions and state management
 """
 
 import os
 import ctypes
 from typing import List, Optional
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPTS_DIR, ".."))
+
+
+def _default_lib_path() -> str:
+    lib_dir = os.path.join(PROJECT_ROOT, "lib")
+    for name in ("libengine.so", "libengine.dylib"):
+        candidate = os.path.join(lib_dir, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return os.path.join(lib_dir, "libengine.so")
+
+
+def _default_data_dir() -> str:
+    return os.path.join(PROJECT_ROOT, "data")
 
 
 class RawOccurence(ctypes.Structure):
@@ -45,7 +61,7 @@ class SearchEngine:
     Manages index creation, persistence, and querying.
     """
 
-    def __init__(self, data_dir: str = "data", lib_path: str = "lib/libengine.so"):
+    def __init__(self, data_dir: str | None = None, lib_path: str | None = None):
         """
         Initialize the search engine.
         Args:
@@ -58,9 +74,9 @@ class SearchEngine:
         self._is_indexed = False
 
         # Setup paths
-        self.data_dir = data_dir
-        self.index_path = os.path.join(data_dir, "index.db")
-        self.lib_path = os.path.abspath(lib_path)
+        self.data_dir = data_dir or _default_data_dir()
+        self.index_path = os.path.join(self.data_dir, "index.db")
+        self.lib_path = os.path.abspath(lib_path or _default_lib_path())
 
         # Ensure data directory exists
         os.makedirs(self.data_dir, exist_ok=True)
@@ -105,6 +121,9 @@ class SearchEngine:
         self.lib.engine_index_all_chunked.argtypes = [ctypes.c_void_p]
         self.lib.engine_index_all_chunked.restype = None
 
+        self.lib.engine_index_file.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        self.lib.engine_index_file.restype = ctypes.c_int
+
         # Search
         self.lib.get_search_results.argtypes = [
             ctypes.c_void_p,
@@ -119,6 +138,9 @@ class SearchEngine:
         # Document info
         self.lib.engine_get_document_path.argtypes = [ctypes.c_void_p, ctypes.c_int]
         self.lib.engine_get_document_path.restype = ctypes.c_char_p
+
+        self.lib.engine_get_doc_count.argtypes = [ctypes.c_void_p]
+        self.lib.engine_get_doc_count.restype = ctypes.c_int
 
         # Snippets
         self.lib.get_snippet.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_long]
@@ -141,10 +163,10 @@ class SearchEngine:
 
     def load(self) -> bool:
         """
-        Load index from disk
+        Load index from disk.
 
-        Returns:
-            True if loaded successfully, False otherwise
+        Drops entries whose PDFs no longer exist. If nothing in the index
+        is still on disk, the local index file is deleted.
         """
         if not os.path.exists(self.index_path):
             return False
@@ -152,13 +174,50 @@ class SearchEngine:
         print(f"[Engine] Loading index from {self.index_path}...")
         self.engine = self.lib.engine_deserialize(self.index_path.encode("utf-8"))
 
-        if self.engine:
-            print("[Engine] Index loaded successfully")
-            self._is_indexed = True
-            return True
-        else:
+        if not self.engine:
             print("[Engine] Failed to load index")
             return False
+
+        existing = [path for path in self._document_paths() if os.path.isfile(path)]
+        total = self.lib.engine_get_doc_count(self.engine)
+
+        if not existing:
+            print("[Engine] Indexed files are gone; clearing local index")
+            self._clear_index()
+            return False
+
+        missing = total - len(existing)
+        if missing > 0:
+            print(f"[Engine] Removing {missing} missing file(s) from index")
+            self.create_new()
+            for path in existing:
+                self.index_file(path, persist=False)
+            self.save()
+
+        print("[Engine] Index loaded successfully")
+        self._is_indexed = True
+        return True
+
+    def _document_paths(self) -> List[str]:
+        if not self.engine:
+            return []
+        count = self.lib.engine_get_doc_count(self.engine)
+        paths: List[str] = []
+        for doc_id in range(count):
+            path_bytes = self.lib.engine_get_document_path(self.engine, doc_id)
+            if path_bytes:
+                paths.append(path_bytes.decode("utf-8"))
+        return paths
+
+    def _clear_index(self) -> None:
+        if self.engine:
+            self.lib.engine_free(self.engine)
+            self.engine = None
+        self._is_indexed = False
+        try:
+            os.remove(self.index_path)
+        except FileNotFoundError:
+            pass
 
     def save(self) -> bool:
         """
@@ -178,7 +237,7 @@ class SearchEngine:
             print("[Engine] Index saved successfully")
             return True
         else:
-            print("[Engine] Failed ot save index")
+            print("[Engine] Failed to save index")
             return False
 
     def index_directory(self, directory: str, callback=None) -> bool:
@@ -220,6 +279,24 @@ class SearchEngine:
         self._is_indexed = True
         return True
 
+    def index_file(self, filepath: str, persist: bool = True) -> bool:
+        """
+        Index a single PDF. Skips work if that path is already in the index.
+        """
+        if not self.engine:
+            self.create_new()
+
+        abs_path = os.path.abspath(filepath)
+        result = self.lib.engine_index_file(self.engine, abs_path.encode("utf-8"))
+        if result < 0:
+            print(f"[Engine] Failed to index {abs_path}")
+            return False
+
+        self._is_indexed = True
+        if result == 0 and persist:
+            self.save()
+        return True
+
     def search(self, query: str) -> List[SearchResult]:
         """
         Search for a word in the index.
@@ -251,21 +328,18 @@ class SearchEngine:
                 page_num = occ.page_num
                 byte_offset = occ.byte_offset
 
-                # Get document path
-                doc_path = self.lib.engine_get_document_path(
-                    self.engine, doc_id
-                ).decode("utf-8")
+                path_bytes = self.lib.engine_get_document_path(self.engine, doc_id)
+                if not path_bytes:
+                    continue
+                doc_path = path_bytes.decode("utf-8")
+                if not os.path.isfile(doc_path):
+                    continue
 
-                # Fetch metadata from C
                 meta_ptr = self.lib.engine_get_metadata(self.engine, doc_id)
-
-                # Initialize default in case meta_ptr is null
                 title, author = "Unknown Title", "Unknown Author"
 
                 if meta_ptr:
-                    # Access the struct data via.contents
                     meta_data = meta_ptr.contents
-                    #Decode C strings
                     if meta_data.title:
                         title = meta_data.title.decode("utf-8", errors="ignore")
                     if meta_data.author:
@@ -274,7 +348,6 @@ class SearchEngine:
                 result = SearchResult(doc_id, page_num, byte_offset, doc_path, title, author)
                 results.append(result)
 
-            # Free C memory
             self.lib.free_results(results_ptr)
 
         return results
@@ -301,7 +374,6 @@ class SearchEngine:
             snippet = raw_bytes.decode("utf-8", errors="ignore")
             return snippet.replace("\n", " ")
         finally:
-            # Always free C memory
             self.lib.free_snippet(raw_snippet_ptr)
 
     def is_indexed(self) -> bool:
@@ -321,4 +393,5 @@ class SearchEngine:
         """Context manager cleanup"""
         if self.engine:
             self.lib.engine_free(self.engine)
+            self.engine = None
         return False

@@ -59,8 +59,6 @@ occurrence_transfer_t *get_search_results(search_engine_t *engine,
   return results;
 }
 
-void free_results(int *results) {
-  if (results != NULL) {
-    free(results);
-  }
+void free_results(occurrence_transfer_t *results) {
+  free(results);
 }

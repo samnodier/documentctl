@@ -25,7 +25,7 @@ def test_snippet_integration():
     engine.index_directory(test_data_dir)
 
     # 2. VERIFY TRIE CONTENT
-    test_word = "sam"  # Or "the", but "sam" is better if it's in your resume
+    test_word = "algorithm"
     results = engine.search(test_word)
 
     if not results:

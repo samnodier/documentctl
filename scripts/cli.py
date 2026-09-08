@@ -78,8 +78,8 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="data",
-        help="Directory to store index (default: data)",
+        default=None,
+        help="Directory to store index (default: <project>/data)",
     )
 
     args = parser.parse_args()
@@ -97,10 +97,10 @@ def main():
     if needs_indexing:
         if not args.directory:
             print("Error: Directory required for indexing")
-            print("Usage: python cli.py <directory>")
+            print("Usage: python main.py <directory>")
             return 1
         if not os.path.isdir(args.directory):
-            print(f"Error: '{args.directory} is not a valid directory")
+            print(f"Error: '{args.directory}' is not a valid directory")
             return 1
 
         if args.reindex:

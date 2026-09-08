@@ -9,6 +9,6 @@ occurrence_transfer_t *get_search_results(search_engine_t *engine,
                                           const char *word, int *found_count);
 
 int *get_doc_ids_from_search(word_occurrence_t *list, int *out_count);
-void free_results(int *results);
+void free_results(occurrence_transfer_t *results);
 
 #endif // !QUERY_ENGINE_H

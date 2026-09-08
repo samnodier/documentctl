@@ -1,9 +1,7 @@
 import sys
 import re
 import os
-import resources_rc # type: ignore
 import fitz
-os.environ["QT_WAYLAND_DISABLE_WINDOWDECORATION"] = "0"
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QMainWindow, QMessageBox, QPushButton, QSizePolicy, QSlider, QWidget,
                              QTextEdit, QScrollArea, QListWidgetItem,
                              QVBoxLayout, QLineEdit, QLabel,
@@ -14,9 +12,30 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QMainWindow
 from PyQt6.QtGui import QAction, QIcon, QShortcut, QKeySequence, QFont, QImage, QPixmap
 from PyQt6.QtCore import QSize, QThread, Qt, pyqtSignal
 
-# Import the engine wrapper
-
 from search_engine import SearchEngine
+
+_ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+
+
+def _icon(name: str) -> QIcon:
+    return QIcon(os.path.join(_ICONS_DIR, name))
+
+
+def _pixmap(name: str, size: int = 16) -> QPixmap:
+    pix = QPixmap(os.path.join(_ICONS_DIR, name))
+    if pix.isNull():
+        return pix
+    return pix.scaled(
+        size,
+        size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+
+
+def _doc_is_open(doc) -> bool:
+    """fitz.Document is truthy via page count, which raises after close()."""
+    return doc is not None and not getattr(doc, "is_closed", False)
 
 class EngineSearchWorker(QThread):
     results_ready = pyqtSignal(list) # Sends the object
@@ -60,14 +79,18 @@ class LeftPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        # Search Header label
-        header = QLabel()
-        header.setText(
-            '<img src=":/icons/search.png" width="16" height="16" style="vertical-align: middle;"> '
-            'Search'
-        )
-        header.setFont(QFont("Satoshi", 10, QFont.Weight.Medium))
-        layout.addWidget(header)
+        header_row = QHBoxLayout()
+        header_icon = QLabel()
+        header_icon.setPixmap(_pixmap("search.png"))
+        header = QLabel("Search")
+        header_font = QFont()
+        header_font.setPointSize(10)
+        header_font.setWeight(QFont.Weight.Medium)
+        header.setFont(header_font)
+        header_row.addWidget(header_icon)
+        header_row.addWidget(header)
+        header_row.addStretch()
+        layout.addLayout(header_row)
 
         # Search input row
         search_row = QHBoxLayout()
@@ -173,19 +196,26 @@ class PDFViewer(QScrollArea):
     """
     Renders a single PDF page using PyMuPDF and displays it inside a scroll area
     """
+    zoom_changed = pyqtSignal(float)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        # Inner label that holds the page pixmap
         self._page_label = QLabel("Open a PDF to get started")
         self._page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._page_label.setStyleSheet("color: #888; font-size: 16px;")
-        self._page_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        self.setWidget(self._page_label)
+        self._page_label.setScaledContents(False)
+
+        self._container = QWidget()
+        page_layout = QVBoxLayout(self._container)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        page_layout.addWidget(self._page_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.setWidget(self._container)
 
         self._doc = None
         self._zoom = 1.5
@@ -199,8 +229,9 @@ class PDFViewer(QScrollArea):
         self.render_page()
 
     def set_zoom(self, zoom: float):
-        self._zoom = zoom
+        self._zoom = max(0.2, min(float(zoom), 3.0))
         self.render_page()
+        self.zoom_changed.emit(self._zoom)
 
     def render_page(self, highlight_term = None):
         if self._doc is None:
@@ -211,48 +242,44 @@ class PDFViewer(QScrollArea):
 
         page = self._doc[self._current_page]
 
-        # If we have a highlight term apply it to the page temporarily
         if self._highlight_term:
-            # Search for intances of the word
             text_instances = page.search_for(self._highlight_term)
             for inst in text_instances:
-                # Add a highlight annotation (Yellow)
                 annot = page.add_highlight_annot(inst)
                 annot.update()
 
         matrix = fitz.Matrix(self._zoom, self._zoom)
-        # alpha=False ensures a white background for PDFs
         pix = page.get_pixmap(matrix = matrix, alpha = False)
 
-        # Convert fitz.Pixmap -> QPixmap
         img = QImage(
             pix.samples,
             pix.width,
             pix.height,
             pix.stride,
             QImage.Format.Format_RGB888
-        )
-        self._page_label.setPixmap(QPixmap.fromImage(img))
-        self._page_label.adjustSize()
+        ).copy()
+        pixmap = QPixmap.fromImage(img)
+        self._page_label.setPixmap(pixmap)
+        self._page_label.setFixedSize(pixmap.size())
+        # Force the scroll area to honor the zoomed page size.
+        self._container.setMinimumSize(pixmap.size())
 
-        # Clean up highlight so it doesn't stay on the PDF performanently
         if self._highlight_term:
-            for annot in page.annots():
-                page.delete_annot(annot)
+            annots = page.annots()
+            if annots:
+                for annot in annots:
+                    page.delete_annot(annot)
 
     def goto_page(self, page_num: int):
         if self._doc is None:
             return
         page_num = max(0, min(page_num, len(self._doc) - 1))
 
-        # if the user manually navigates, clear the previous search highlight
-        # If they came from a search result, handle_search_result_selection will set a new one
         if self._current_page != page_num:
             self._highlight_term = None
 
         self._current_page = page_num
         self.render_page()
-        # Scroll back to the top of the new page
         v_bar = self.verticalScrollBar()
         if v_bar:
             v_bar.setValue(0)
@@ -261,18 +288,16 @@ class PDFViewer(QScrollArea):
         if a0 is None:
             return
         if a0.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            # Calculate the zoom direction (delta is between 120 and -120)
             angle = a0.angleDelta().y()
             zoom_step = 0.1
-
             if angle > 0:
-                self._zoom += zoom_step
+                self.set_zoom(self._zoom + zoom_step)
             else:
-                self._zoom = max(0.2, self._zoom - zoom_step)
-            self.render_page()
+                self.set_zoom(self._zoom - zoom_step)
+            a0.accept()
+            return
 
-        else:
-            super().wheelEvent(a0)
+        super().wheelEvent(a0)
 
     @property
     def current_page(self) -> int:
@@ -280,7 +305,7 @@ class PDFViewer(QScrollArea):
 
     @property
     def page_count(self) -> int:
-        return len(self._doc) if self._doc else 0
+        return len(self._doc) if _doc_is_open(self._doc) else 0
 
 class ContextView(QWidget):
     def __init__(self, parent=None):
@@ -305,7 +330,6 @@ class ContextView(QWidget):
                 background: #181825;
                 color: #a6adc8;
                 border-left: none;
-                font-family: 'Satoshi', sans-serif;
                 font-size: 13px;
             }
         """)
@@ -369,9 +393,10 @@ class PDFReaderWindow(QMainWindow):
             QSplitter::handle { background: #3a3a5a; width: 3px; }
             QStatusBar  { background: #2a2a3e; color: #888; }
         """)
-        # 4. Emergency Quit (Hyprland)
         self.quit_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
         self.quit_shortcut.activated.connect(self.close)
+        self.quit_shortcut_q = QShortcut(QKeySequence("Ctrl+Q"), self)
+        self.quit_shortcut_q.activated.connect(self.close)
 
 
     def _build_toolbar(self):
@@ -380,17 +405,21 @@ class PDFReaderWindow(QMainWindow):
         tb.setIconSize(QSize(16, 16))
         self.addToolBar(tb)
 
-        # Open file
-        self.act_open = QAction(QIcon(":/icons/file_open.png"), "Open", self)
+        self.act_open = QAction(_icon("file_open.png"), "Open", self)
         self.act_open.setShortcut("Ctrl+O")
         self.act_open.setToolTip("Open PDF file (Ctrl+O)")
         self.act_open.triggered.connect(self.open_pdf)
         tb.addAction(self.act_open)
 
+        self.act_index = QAction(_icon("file.png"), "Index Folder", self)
+        self.act_index.setShortcut("Ctrl+Shift+I")
+        self.act_index.setToolTip("Index a folder of PDFs for search (Ctrl+Shift+I)")
+        self.act_index.triggered.connect(self.index_folder)
+        tb.addAction(self.act_index)
+
         tb.addSeparator()
 
-        # Toggle sidebar
-        self.act_toggle_sidebar = QAction(QIcon(":icons/dock_to_right.png"), "Hide Panel", self)
+        self.act_toggle_sidebar = QAction(_icon("dock_to_right.png"), "Hide Panel", self)
         self.act_toggle_sidebar.setShortcut("Ctrl+B")
         self.act_toggle_sidebar.setToolTip("Toggle search panel (Ctrl+B)")
         self.act_toggle_sidebar.triggered.connect(self.toggle_sidebar)
@@ -398,21 +427,19 @@ class PDFReaderWindow(QMainWindow):
 
         tb.addSeparator()
 
-        # Toggle context view
-        self.act_toggle_context = QAction(QIcon(":icons/dock_to_left.png"), "Show Text", self)
+        self.act_toggle_context = QAction(_icon("dock_to_left.png"), "Show Text", self)
         self.act_toggle_context.setShortcut("Ctrl+I")
         self.act_toggle_context.setToolTip("Toggle Raw Text Panel (Ctrl+I)")
         self.act_toggle_context.triggered.connect(self.toggle_context_view)
         tb.addAction(self.act_toggle_context)
 
-        # Prev / Next Page
-        self.act_prev = QAction(QIcon(":/icons/arrow_back.png"), "Prev", self)
+        self.act_prev = QAction(_icon("arrow_back.png"), "Prev", self)
         self.act_prev.setShortcut("Left")
         self.act_prev.setEnabled(False)
         self.act_prev.triggered.connect(self.prev_page)
         tb.addAction(self.act_prev)
 
-        self.act_next = QAction(QIcon(":/icons/arrow_forward.png"), "Prev", self)
+        self.act_next = QAction(_icon("arrow_forward.png"), "Next", self)
         self.act_next.setShortcut("Right")
         self.act_next.setEnabled(False)
         self.act_next.triggered.connect(self.next_page)
@@ -434,10 +461,11 @@ class PDFReaderWindow(QMainWindow):
 
         tb.addSeparator()
         tb.addWidget(QLabel(" Zoom "))
-        zoom_slider = QSlider(Qt.Orientation.Horizontal)
-        zoom_slider.setRange(50, 300); zoom_slider.setValue(150)
-        zoom_slider.valueChanged.connect(lambda v: self._pdf_viewer.set_zoom(v / 100))
-        tb.addWidget(zoom_slider)
+        self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self._zoom_slider.setRange(50, 300)
+        self._zoom_slider.setValue(150)
+        self._zoom_slider.setFixedWidth(140)
+        tb.addWidget(self._zoom_slider)
 
     def _build_central(self):
         central = QWidget()
@@ -458,11 +486,11 @@ class PDFReaderWindow(QMainWindow):
 
         # RIGHT Panel: PDF Viewer
         self._pdf_viewer = PDFViewer()
+        self._pdf_viewer.zoom_changed.connect(self._on_viewer_zoom)
+        self._zoom_slider.valueChanged.connect(
+            lambda v: self._pdf_viewer.set_zoom(v / 100)
+        )
         self._splitter.addWidget(self._pdf_viewer)
-
-        v_bar = self._pdf_viewer.verticalScrollBar()
-        if v_bar is not None:
-            v_bar.valueChanged.connect(self._handle_continuous_scroll)
         # CONTEXT VIEW
         self._context_view = ContextView()
         self._splitter.addWidget(self._context_view)
@@ -506,13 +534,14 @@ class PDFReaderWindow(QMainWindow):
         """"Load PDF and sync UI components"""
         try:
             abs_path = os.path.abspath(path)
-            if self._doc and self._doc.name:
+            if _doc_is_open(self._doc) and self._doc.name:
                 current_path = os.path.abspath(self._doc.name)
                 if current_path == abs_path:
                     return True
 
-            if self._doc:
+            if _doc_is_open(self._doc):
                 self._doc.close()
+            self._doc = None
 
             self._doc = fitz.open(abs_path)
 
@@ -529,29 +558,62 @@ class PDFReaderWindow(QMainWindow):
             self.page_total_label.setText(f"  / {page_count}  ")
             self.act_prev.setEnabled(True)
             self.act_next.setEnabled(True)
-            self.act_toggle_sidebar.setText(
-                '<img src=":/icons/dock_to_right.png" width="16" height="16" style="vertical-align: middle;"> '
-                'Hide Panel'
-            )
+            self.act_toggle_sidebar.setText("Hide Panel")
 
             self.setWindowTitle(f"Toolkit - {os.path.basename(abs_path)}")
+
+            self._index_open_document(abs_path)
 
             return True
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not open PDF: {e}")
+            return False
+
+    def index_folder(self):
+        path = QFileDialog.getExistingDirectory(self, "Index PDF folder")
+        if not path:
+            return
+
+        engine = self._left_panel.engine
+        self.status.showMessage(f"Indexing {path}...")
+        QApplication.processEvents()
+
+        engine.create_new()
+        if not engine.index_directory(path):
+            QMessageBox.warning(self, "Index failed", f"Could not index '{path}'.")
+            self.status.showMessage("Indexing failed")
+            return
+
+        engine.save()
+        self._left_panel.status_msg = "Index loaded successfully"
+        self.status.showMessage(f"Indexed PDFs in {path}")
+
+    def _index_open_document(self, path: str):
+        engine = self._left_panel.engine
+        self.status.showMessage(f"Indexing {os.path.basename(path)} for search...")
+        QApplication.processEvents()
+        if engine.index_file(path):
+            self.status.showMessage(f"Loaded and searchable: {os.path.basename(path)}")
+        else:
+            self.status.showMessage(f"Loaded {os.path.basename(path)} (search index skipped)")
+
+    def _on_viewer_zoom(self, zoom: float):
+        self._zoom_slider.blockSignals(True)
+        self._zoom_slider.setValue(int(round(zoom * 100)))
+        self._zoom_slider.blockSignals(False)
 
     # Navigation
     def prev_page(self):
-        if self._doc and self._pdf_viewer.current_page > 0:
+        if _doc_is_open(self._doc) and self._pdf_viewer.current_page > 0:
             self.goto_page(self._pdf_viewer.current_page - 1)
 
     def next_page(self):
-        if self._doc and self._pdf_viewer.current_page < len(self._doc) - 1:
+        if _doc_is_open(self._doc) and self._pdf_viewer.current_page < len(self._doc) - 1:
             self.goto_page(self._pdf_viewer.current_page + 1)
 
     def goto_page(self, page_num:int):
         """Central method to change page - keep toolbar and viewer in sync"""
-        if not self._doc:
+        if not _doc_is_open(self._doc):
             return
 
         # Bound checking
@@ -581,7 +643,7 @@ class PDFReaderWindow(QMainWindow):
 
     def _on_page_spin_changed(self, value: int):
         """ Called when user types a pgae number in spin box"""
-        if self._doc:
+        if _doc_is_open(self._doc):
             self.goto_page(value-1)
 
     def toggle_sidebar(self):
@@ -593,18 +655,12 @@ class PDFReaderWindow(QMainWindow):
         if sizes[0] > 0:
             # Collapse
             self._splitter.setSizes([0, sum(sizes)])
-            self.act_toggle_sidebar.setText(
-                '<img src=":/icons/dock_to_right.png" width="16" height="16" style="vertical-align: middle;"> '
-                'Show Panel'
-                )
+            self.act_toggle_sidebar.setText("Show Panel")
         else:
             # Expand
             total = sum(sizes)
             self._splitter.setSizes([260, total - 260])
-            self.act_toggle_sidebar.setText(
-                '<img src=":/icons/dock_to_right.png" width="16" height="16" style="vertical-align: middle;"> '
-                'Hide Panel'
-                )
+            self.act_toggle_sidebar.setText("Hide Panel")
 
     def toggle_context_view(self):
         """Toggle the rigth side ContextView panel and update icon/Text"""
@@ -624,29 +680,6 @@ class PDFReaderWindow(QMainWindow):
             self.act_toggle_context.setText("Hide Text")
             self.status.showMessage("Context Panel Visible")
 
-    def _handle_continuous_scroll(self, value):
-        if not self._doc:
-            return
-
-        v_bar = self._pdf_viewer.verticalScrollBar()
-        if v_bar is None:
-            return
-
-        # Check if we hit the bottom
-        if value == v_bar.maximum() and v_bar.maximum() > 0:
-            current = self._pdf_viewer.current_page
-            if current < len(self._doc) - 1:
-                self.next_page()
-                v_bar.setValue(1)
-        # If we hit the top
-        elif value == 0:
-            current = self._pdf_viewer.current_page
-            if current > 0:
-                self.prev_page()
-                # Reset Scroll to the bottom of the previous page
-                QApplication.processEvents()
-                v_bar.setValue(v_bar.maximum() -1)
-
     def keyPressEvent(self, a0):
         if a0 is None:
             return
@@ -663,10 +696,15 @@ class PDFReaderWindow(QMainWindow):
         if a0 is None:
             return
 
-        if self._doc:
+        doc = self._doc
+        self._doc = None
+        if getattr(self, "_pdf_viewer", None) is not None:
+            self._pdf_viewer._doc = None
+        if getattr(self, "_left_panel", None) is not None:
+            self._left_panel._doc = None
+        if doc is not None and not getattr(doc, "is_closed", False):
             try:
-                self._doc.close()
-                self._doc = None
+                doc.close()
             except Exception as e:
                 print(f"Error closing document: {e}")
         a0.accept()
@@ -674,7 +712,7 @@ class PDFReaderWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setDesktopFileName("PDF Reader")
+    app.setApplicationName("documentctl")
 
     window = PDFReaderWindow()
     window.show()

@@ -1,80 +1,111 @@
 # C-Trie PDF Reader & Search Engine
 
-A high-performance, cross-language desktop search engine. This project uses a **C-based Trie data structure** for lightning-fast indexing and **Poppler** for PDF text extraction, all wrapped in a Python interface for ease of use.
+A desktop PDF search engine. Indexing and lookup run in C (a trie plus Poppler), and Python provides a command-line loop and a PyQt reader.
 
-## 🚀 Features
+## Prerequisites
 
-- **Blazing Fast Indexing**: Custom C implementation of a Trie (prefix tree) for $O(L)$ word lookups, where $L$ is the length of the word.
-- **Automated Discovery**: Recursive directory crawling to find and map PDF documents.
-- **Poppler Integration**: Robust PDF parsing using the industry-standard Poppler GLib library.
-- **Memory Efficient**: Manual memory management in C with a Python `ctypes` bridge to ensure a low footprint.
-- **Case-Insensitive**: Normalized search queries via the Python manager.
+- `gcc` (or Apple clang), `make`, `pkg-config`
+- `poppler-glib` and `glib`
+- Python 3.10+ (3.14 on Fedora 44 is fine)
 
-## 🛠 Prerequisites
+### Fedora
 
-Since this project builds against native C libraries, you will need:
-
-- Compiler: `gcc`
-- Build System: `make`
-- Libraries: `poppler-glib` and `glib-2.0`
-- Language: `python3`
-
-### Install Dependencies (Arch Linux)
-
-```
-sudo pacman -S poppler-glib glib2 gcc make
+```bash
+sudo dnf install gcc make pkgconf poppler-glib-devel glib2-devel python3
 ```
 
-## 🏗 Installation & Build
+### macOS
 
-1. **Clone the repository**:
-
-```
-git clone https://github.com/samnodier/documentctl.git
-cd pdf-search-engine
+```bash
+brew install gcc make pkg-config poppler python
 ```
 
-1. **Compile the C Shared Library**: The project uses a `Makefile` to compile the C source files into a shared object (`.so`) that Python can load.
+Homebrew’s `poppler` package includes the GLib bindings the C library links against.
 
-```
+Python packages (PyQt6, PyMuPDF) are installed with `uv` or `pip` below. You do not need to install Poppler via Python.
+
+## Build
+
+From the repo root:
+
+```bash
 make
 ```
 
-## 🖥 Usage
+That compiles `lib/libengine.so` on Linux or `lib/libengine.dylib` on macOS.
 
-Run the engine by pointing it to a directory containing PDF files:
+Install the Python dependencies:
 
+```bash
+uv sync
 ```
-python main.py /path/to/your/pdfs
+
+Or without uv:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install pymupdf pyqt6
 ```
 
-### Commands
+## How to run
 
-- **Indexing**: Upon launch, the engine will crawl and index all PDFs found.
-- **Search**: Type any word to see a list of documents where it occurs.
-- **Exit**: Type `exit` to shut down the engine and free allocated memory.
+Always run from the repo root after `make`.
 
-## 📂 Project Structure
+**Desktop reader (default):**
 
-- `main.py``: The Python entry point and`ctypes` bridge.
-- `engine.c/h`: The core search engine manager and document mapping.
-- `trie.c/h`: High-performance Trie data structure implementation.
-- `crawler.c/h`: Filesystem navigation logic.pdf_processor.
-- `c/h`: PDF text extraction logic using Poppler.
-- `Makefile`: Handles compilation and linking of the C shared library.
+```bash
+uv run python main.py
+```
 
-## 🗺 Roadmap
+In the window:
 
-- [x] **Phase 1**: High-performance C-Trie indexer.
-- [x] **Phase 2**: Automated filesystem crawling and Poppler integration.
-- [x] **Phase 3**: Page-level granularity and hit-context snippets.
-- [ ] **Phase 4**: AI-assisted summarization (Gemini API integration).
-- [ ] **Phase 5**: Persistent binary index storage to disk.
+1. **Index Folder** (toolbar, or `Ctrl+Shift+I`) — pick a directory of PDFs. Search needs this once.
+2. **Open** (`Ctrl+O`) — view a PDF.
+3. Type a word in the left search box and press Go. Click a hit to jump to that page.
 
-## 🤝 Contributing
+**Command-line index + search:**
 
-This is an MVP (Minimum Viable Product). Future iterations will include:
+```bash
+uv run python main.py /path/to/your/pdfs
+```
 
-- Page number tracking for search results.
-- Persistent disk-based indexing.
-- Multi-threaded crawling
+Type a word to search, or `exit` to quit. Re-index with:
+
+```bash
+uv run python main.py /path/to/your/pdfs --reindex
+```
+
+If `uv` is not installed, use the venv instead:
+
+```bash
+source .venv/bin/activate
+python main.py
+```
+
+If you copied this repo from another machine or distro and `uv` complains about the interpreter, recreate the environment:
+
+```bash
+uv venv --clear --python python3
+uv sync
+```
+
+## Tests
+
+```bash
+make test
+make test-python
+```
+
+`make test-python` needs the shared library (`make`) and the Python packages above.
+
+## Project layout
+
+- `main.py` — launches the GUI, or the CLI when you pass a directory
+- `scripts/gui.py` — PyQt PDF reader and search panel
+- `scripts/cli.py` — interactive search loop
+- `scripts/search_engine.py` — `ctypes` bridge to the C library
+- `src/` / `include/` — crawler, trie, Poppler indexer, query API
+- `Makefile` — shared library, tests, and `compile_commands.json` for the editor
+
+The index is stored only on your machine at `data/index.db` (created on first index). It is gitignored and is not part of the GitHub repo. If indexed PDFs are deleted, those entries are dropped the next time the app starts.

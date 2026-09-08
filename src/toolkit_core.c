@@ -10,6 +10,8 @@
 #include <unistd.h>
 
 doc_metadata_t *engine_get_metadata(search_engine_t *engine, int doc_id) {
+    if (engine == NULL || engine->metadata_map == NULL)
+        return NULL;
     if (doc_id < 0 || doc_id >= engine->doc_count)
         return NULL;
     return &engine->metadata_map[doc_id];
@@ -33,7 +35,12 @@ search_engine_t *engine_create() {
     engine->document_map = doc_map;
     engine->metadata_map =
         malloc(sizeof(doc_metadata_t) * engine->doc_capacity);
-    // Initialize the titles and authors
+    if (engine->metadata_map == NULL) {
+        free(engine->document_map);
+        trie_free(engine->index_root);
+        free(engine);
+        return NULL;
+    }
     for (int i = 0; i < engine->doc_capacity; i++) {
         engine->metadata_map[i].title = NULL;
         engine->metadata_map[i].author = NULL;
@@ -62,11 +69,66 @@ void engine_free(search_engine_t *engine) {
         free(engine->metadata_map[i].author);
     }
 
-    // Free the array of pointers
     free(engine->document_map);
-
-    // Free the engine shell
+    free(engine->metadata_map);
     free(engine);
+}
+
+int engine_grow_capacity(search_engine_t *engine) {
+    if (engine == NULL)
+        return -1;
+
+    int new_capacity = engine->doc_capacity > 0 ? engine->doc_capacity * 2 : 100;
+    char **temp_map =
+        realloc(engine->document_map, sizeof(char *) * (size_t)new_capacity);
+    if (temp_map == NULL) {
+        perror("realloc failed");
+        return -1;
+    }
+    engine->document_map = temp_map;
+
+    doc_metadata_t *temp_meta = realloc(
+        engine->metadata_map, sizeof(doc_metadata_t) * (size_t)new_capacity);
+    if (temp_meta == NULL) {
+        perror("realloc failed");
+        return -1;
+    }
+
+    for (int i = engine->doc_capacity; i < new_capacity; i++) {
+        temp_meta[i].title = NULL;
+        temp_meta[i].author = NULL;
+    }
+
+    engine->metadata_map = temp_meta;
+    engine->doc_capacity = new_capacity;
+    return 0;
+}
+
+int engine_index_file(search_engine_t *engine, const char *filepath) {
+    if (engine == NULL || filepath == NULL)
+        return -1;
+
+    for (int i = 0; i < engine->doc_count; i++) {
+        if (engine->document_map[i] != NULL &&
+            strcmp(engine->document_map[i], filepath) == 0) {
+            return 1; /* already in the index */
+        }
+    }
+
+    if (engine->doc_count >= engine->doc_capacity) {
+        if (engine_grow_capacity(engine) != 0)
+            return -1;
+    }
+
+    char *copy = strdup(filepath);
+    if (copy == NULL)
+        return -1;
+
+    int doc_id = engine->doc_count;
+    engine->document_map[doc_id] = copy;
+    engine->doc_count++;
+    index_pdf_content(engine, doc_id, copy);
+    return 0;
 }
 
 // Incorporate chunking to allow the threader to work on multiple files
@@ -84,39 +146,38 @@ void engine_index_all_chunked(search_engine_t *engine) {
         num_threads = engine->doc_count;
     }
 
-    pthread_t *threads = malloc(sizeof(pthread_t) * num_threads);
-
+    pthread_t *threads = malloc(sizeof(pthread_t) * (size_t)num_threads);
     if (threads == NULL) {
         return;
     }
 
-    int files_per_thread = engine->doc_count / num_threads;
+    int files_per_thread = engine->doc_count / (int)num_threads;
+    int n_created = 0;
 
     for (int i = 0; i < num_threads; i++) {
         thread_chunk_t *chunk = malloc(sizeof(thread_chunk_t));
         if (chunk == NULL) {
-            return; // In the future handle this better
+            break;
         }
 
         chunk->engine = engine;
         chunk->start_index = i * files_per_thread;
-
-        // The last thread takes any remaining files (handing the remainder)
         if (i == num_threads - 1) {
             chunk->end_index = engine->doc_count;
         } else {
             chunk->end_index = chunk->start_index + files_per_thread;
         }
 
-        // Create the threads
-        if (pthread_create(&threads[i], NULL, thread_chunk_worker, chunk) !=
-            0) {
+        if (pthread_create(&threads[n_created], NULL, thread_chunk_worker,
+                           chunk) != 0) {
             perror("Failed to create thread");
-            free(chunk);
+            thread_chunk_worker(chunk);
+        } else {
+            n_created++;
         }
     }
 
-    for (int i = 0; i < num_threads; i++) {
+    for (int i = 0; i < n_created; i++) {
         pthread_join(threads[i], NULL);
     }
 
@@ -208,6 +269,10 @@ search_engine_t *engine_deserialize(char *filepath) {
     // 3. Read the VERSION number
     uint16_t VERSION;
     fread(&VERSION, sizeof(uint16_t), 1, fp);
+    if (VERSION != 1) {
+        fclose(fp);
+        return NULL;
+    }
 
     // 4. Allocate a new search_engine_t
     search_engine_t *engine = malloc(sizeof(search_engine_t));
@@ -218,22 +283,26 @@ search_engine_t *engine_deserialize(char *filepath) {
 
     pthread_mutex_init(&engine->trie_lock, NULL);
 
-    // 5. Read the document count
     int doc_count;
     fread(&doc_count, sizeof(int), 1, fp);
     engine->doc_count = doc_count;
+    engine->index_root = NULL;
+    engine->document_map = NULL;
+    engine->metadata_map = NULL;
 
-    // 6. Rebuild the document_map and metadata_map arrays
-    char **document_map = malloc(sizeof(char *) * doc_count);
-    engine->metadata_map = malloc(sizeof(doc_metadata_t) * doc_count);
-
-    if (document_map == NULL || engine->metadata_map == NULL) {
-        if (document_map)
+    char **document_map = NULL;
+    if (doc_count > 0) {
+        document_map = malloc(sizeof(char *) * (size_t)doc_count);
+        engine->metadata_map =
+            malloc(sizeof(doc_metadata_t) * (size_t)doc_count);
+        if (document_map == NULL || engine->metadata_map == NULL) {
             free(document_map);
-        if (engine->metadata_map)
             free(engine->metadata_map);
-        fclose(fp);
-        return NULL;
+            pthread_mutex_destroy(&engine->trie_lock);
+            free(engine);
+            fclose(fp);
+            return NULL;
+        }
     }
 
     for (int i = 0; i < engine->doc_count; i++) {
@@ -270,12 +339,21 @@ search_engine_t *engine_deserialize(char *filepath) {
     }
 
     engine->document_map = document_map;
-    engine->doc_capacity = doc_count;
+    engine->doc_capacity = doc_count > 0 ? doc_count : 1;
+    if (doc_count == 0) {
+        engine->document_map = malloc(sizeof(char *));
+        engine->metadata_map = malloc(sizeof(doc_metadata_t));
+        if (engine->metadata_map != NULL) {
+            engine->metadata_map[0].title = NULL;
+            engine->metadata_map[0].author = NULL;
+        }
+    }
 
-    // 7. Create and read the root node metadata
     trie_node_t *root = create_node();
     bool isEndOfWord;
     fread(&isEndOfWord, sizeof(bool), 1, fp);
+    if (root != NULL)
+        root->isEndOfWord = isEndOfWord;
     int root_children_num;
     fread(&root_children_num, sizeof(int), 1, fp);
 
@@ -293,5 +371,13 @@ search_engine_t *engine_deserialize(char *filepath) {
 }
 
 const char *engine_get_document_path(search_engine_t *engine, int doc_id) {
+    if (engine == NULL || doc_id < 0 || doc_id >= engine->doc_count)
+        return NULL;
     return engine->document_map[doc_id];
+}
+
+int engine_get_doc_count(search_engine_t *engine) {
+    if (engine == NULL)
+        return 0;
+    return engine->doc_count;
 }

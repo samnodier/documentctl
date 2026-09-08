@@ -10,8 +10,10 @@
 
 .cache/
 data/
+*.db
 build/
 lib/
+# Generated Qt resource module (icons are loaded from scripts/icons/)
 scripts/resources_rc.py
 test_suite
 
